@@ -1,6 +1,9 @@
 const express = require('express')
 const mongoDB = require('./config/databaseConfig')
 const User = require('./models/user')
+const bcrypt = require('bcrypt')
+const validate = require('validator')
+const {validateSignUpData} = require('./utils/validation')
 const app = express()
 app.use(express.json());
 app.get('/user' , async (req , res) => {
@@ -29,17 +32,21 @@ app.get('/feed' , async (req , res) => {
         res.status(404).send('Something Went Wrong')
     }  
 })
-app.post('/signUp' , async (req , res) => {
-    const userData = req.body
-    const userDocument = new User(userData)
+app.post('/signup' , async (req , res) => {
     try{
+        validateSignUpData(req)
+        const {password} = req.body
+        const passwordHash = await bcrypt.hash(password , 10)
+        const userData = req.body
+        userData.password = passwordHash
+        const userDocument = new User(userData)
         await userDocument.save()
         res.send('User Saved Successfully')
     }catch(err){
-        res.status(400).send('Failed to add the User')
+        res.status(400).send('ERROR: ' + err.message)
     }
 })
-app.get('/id' , async (req , res) => {
+app.get('/id' , async (req , res) => {  
     const objId = req.body.id
     try{
         const result = await User.findById(objId)
@@ -48,11 +55,60 @@ app.get('/id' , async (req , res) => {
         res.status(404).send('Something went wrong')
     }
 })
-mongoDB().then(() => {
+
+app.delete('/user' , async (req , res) => {
+    const userId = req.body._id
+    try{
+        const result = await User.findByIdAndDelete(userId)
+        res.send('User deleted Successfully')
+    }catch(err){
+        res.status(404).send('Something went wrong')
+    }
+})
+
+app.patch('/user/:userId' , async (req , res) => {
+    try{
+        const userId = req.params?.userId
+        const data = req.body
+        const ALLOWED_UPDATES = ['photoUrl' , 'about' , 'skills' ,"age" , "gender"]
+        const isAllowed = Object.keys(data).every((key) => ALLOWED_UPDATES.includes(key))
+        if (!isAllowed){
+            throw new Error('Invalid Update Request')
+        }
+        const result = await User.findByIdAndUpdate(userId , data , {
+            returnDocument : "after",
+            runValidators : true
+        }) 
+        res.send("Updated Successfully")
+    }catch(err){
+        res.status(404).send('Update Failed:' + err.message)
+    } 
+})
+
+app.post('/login' , async(req , res) => {
+    try{
+        const {emailId , password} = req.body
+        if( !validate.isEmail(emailId)){
+            throw new Error('Email is not valid')
+        }
+        const datafromDb = await User.find({emailId : emailId})
+        if (datafromDb.length === 0){
+            throw new Error('User not found')
+        }
+        const isPasswordValid = await bcrypt.compare(password , datafromDb[0].password)
+        if (!isPasswordValid){
+            throw new Error('Invalid credentials')
+        }
+        res.send('Login Successful')
+    }catch(err){
+        res.status(400).send('ERROR: ' + err.message)
+    }
+})
+mongoDB().then(() => { 
     console.log(`Connected to DataBase Successfully`)
     app.listen(7777 , () => {
         console.log(`Requests are listened on port 7777`)
     })
 }).catch(err => {
     console.log(`Failed to connect to the DataBase.`)
-})
+}) 
