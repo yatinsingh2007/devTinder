@@ -3,9 +3,13 @@ const mongoDB = require('./config/databaseConfig')
 const User = require('./models/user')
 const bcrypt = require('bcrypt')
 const validate = require('validator')
+const cookieParser = require('cookie-parser')
+const jwt = require('jsonwebtoken')
+const userAuth = require('./middle-ware/auth') 
 const {validateSignUpData} = require('./utils/validation')
 const app = express()
 app.use(express.json());
+app.use(cookieParser());
 app.get('/user' , async (req , res) => {
     const email = req.body.emailId
     try{
@@ -19,7 +23,6 @@ app.get('/user' , async (req , res) => {
         res.status(400).send('Something Went Wrong')
     }
 })
-
 app.get('/feed' , async (req , res) => {
     try{
         const users = await User.find({})
@@ -34,7 +37,7 @@ app.get('/feed' , async (req , res) => {
 })
 app.post('/signup' , async (req , res) => {
     try{
-        validateSignUpData(req)
+        validateSignUpData(req);
         const {password} = req.body
         const passwordHash = await bcrypt.hash(password , 10)
         const userData = req.body
@@ -87,22 +90,37 @@ app.patch('/user/:userId' , async (req , res) => {
 
 app.post('/login' , async(req , res) => {
     try{
-        const {emailId , password} = req.body
+        const emailId = req.body.emailId
+        const password = req.body.password
         if( !validate.isEmail(emailId)){
             throw new Error('Email is not valid')
         }
-        const datafromDb = await User.find({emailId : emailId})
+        const datafromDb = await User.find({emailId})
         if (datafromDb.length === 0){
             throw new Error('User not found')
         }
         const isPasswordValid = await bcrypt.compare(password , datafromDb[0].password)
         if (!isPasswordValid){
             throw new Error('Invalid credentials')
+        }else{
+            const token = jwt.sign({_id : datafromDb[0]._id} , "Thalaforareason" , {
+                expiresIn : '1d'
+            });
+            res.cookie("token" , token)
+            res.send('Login Successful')
         }
-        res.send('Login Successful')
     }catch(err){
         res.status(400).send('ERROR: ' + err.message)
     }
+})
+ 
+app.get('/profile' , userAuth , (req , res) => {
+    user = req.user
+    res.send(user)
+})
+
+app.post("/sendConnectionRequest" , userAuth ,  async (req , res) => {
+
 })
 mongoDB().then(() => { 
     console.log(`Connected to DataBase Successfully`)
@@ -111,4 +129,4 @@ mongoDB().then(() => {
     })
 }).catch(err => {
     console.log(`Failed to connect to the DataBase.`)
-}) 
+})  
