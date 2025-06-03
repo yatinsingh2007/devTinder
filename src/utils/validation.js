@@ -16,6 +16,16 @@ const validateSignUpdata = (req) => {
     }
 }
 
+const validateProfileEditData = (req) => {
+    const allowedFields = ['firstName', 'lastName', 'password' , 'age', 'photoUrl', 'gender' , 'about' , 'skills']
+    for (let key in req.body){
+        if (req.body.hasOwnProperty(key) && !allowedFields.includes(key)) {
+            throw new Error(`Invalid field: ${key}`);
+        }
+    }
+}
+
 module.exports = {
-    validateSignUpdata
+    validateSignUpdata,
+    validateProfileEditData
 };

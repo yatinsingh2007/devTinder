@@ -86,4 +86,24 @@ const userSchema = mongoose.Schema({
 
 const User = mongoose.model("User" , userSchema)
 
+userSchema.methods.getJWT = async function(){
+    const token = jwt.sign({_id : this._id} , "Thalaforareason" , {
+        expiresIn : '1d'
+    });
+    return token
+}
+
+userSchema.methods.decryptpwd = async function(){
+    const decryptedpwd = await bcrypt.hash(this.password , 10)
+    return decryptedpwd
+}
+
+userSchema.methods.validatePassword = async function(password){
+    const isCorrectPassword = await bcrypt.compare(password , this.password)
+    if (!isCorrectPassword){
+        throw new Error('Invalid Password')
+    }
+    return isCorrectPassword
+}
+
 module.exports = User
